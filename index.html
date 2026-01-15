@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>腦筋急轉彎大賽 (競速版)</title>
+    <style>
+        :root {
+            --bg-a: #FF8A65; /* Team A Background (Orange/Red) */
+            --bg-b: #64B5F6; /* Team B Background (Light Blue) */
+            --bg-neutral: #f0f0f0;
+            --text-color: #333;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --base-font-size: 24px;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-neutral);
+            transition: background-color 0.5s ease;
+            color: var(--text-color);
+        }
+
+        /* 隊伍背景樣式 */
+        body.team-a-turn { background-color: var(--bg-a); }
+        body.team-b-turn { background-color: var(--bg-b); }
+
+        .container {
+            width: 90%;
+            max-width: 900px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+        }
+
+        h1, h2 { margin-bottom: 1rem; }
+        
+        /* 設定頁面 */
+        #setup-screen, #result-screen { display: block; }
+        #game-screen { display: none; }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary { background-color: #4CAF50; color: white; }
+        .btn-restart { background-color: #607D8B; color: white; }
+
+        .option-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .option-btn {
+            background-color: white;
+            border: 2px solid #ddd;
+            padding: 20px;
+            font-size: var(--base-font-size);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-align: left;
+        }
+
+        .option-btn:hover { background-color: #f9f9f9; }
+        
+        /* 答對答錯特效 */
+        .option-btn.correct { background-color: #81C784 !important; color: white; border-color: #4CAF50; }
+        .option-btn.wrong { background-color: #E57373 !important; color: white; border-color: #F44336; }
+
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 10px;
+        }
+
+        .team-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            color: white;
+        }
+        .badge-a { background-color: #E64A19; }
+        .badge-b { background-color: #1976D2; }
+
+        .question-text {
+            font-size: calc(var(--base-font-size) * 1.3);
+            font-weight: bold;
+            margin: 30px 0;
+            line-height: 1.4;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 字體調整控制 */
+        .font-control {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .timer-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            min-width: 120px; /* 防止時間跳動導致版面晃動 */
+        }
+        
+        /* 罰時特效 */
+        .penalty-text {
+            color: red;
+            font-weight: bold;
+            font-size: 1rem;
+            animation: blink 0.5s 3;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        /* 結果頁面 */
+        .stats-box {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .stat-card {
+            padding: 20px;
+            border-radius: 10px;
+            width: 40%;
+        }
+        .stat-a { background-color: #FFCCBC; }
+        .stat-b { background-color: #BBDEFB; }
+        
+        .winner-text {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #FFD700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="bg-music" loop>
+        <source src="mp3.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="container">
+        <div id="setup-screen">
+            <h1>🤪 腦筋急轉彎大賽</h1>
+            <h3 style="color: #E57373;">⚠️ 注意：答錯將罰時 7 秒！</h3>
+            <p>請選擇比賽題目數量：</p>
+            <div>
+                <button class="btn btn-primary" onclick="startGame(10)">10 題</button>
+                <button class="btn btn-primary" onclick="startGame(20)">20 題</button>
+                <button class="btn btn-primary" onclick="startGame(40)">40 題</button>
+            </div>
+            <p style="margin-top: 30px; color: #666; font-size: 0.9rem;">
+                規則：A隊(橘)與B隊(藍)輪流作答，<b>比賽勝負僅取決於「總時間」</b>(含罰時)，時間短者獲勝！
+            </p>
+        </div>
+
+        <div id="game-screen">
+            <div class="font-control">
+                字體大小: 
+                <input type="range" min="16" max="40" value="24" id="fontSizeSlider" oninput="adjustFontSize()">
+            </div>
+
+            <div class="info-bar">
+                <div class="timer-display" style="color: #E64A19;">A隊: <span id="timerA">00:00</span></div>
+                <div>題號: <span id="q-current">1</span> / <span id="q-total">10</span></div>
+                <div class="timer-display" style="color: #1976D2;">B隊: <span id="timerB">00:00</span></div>
+            </div>
+
+            <div>
+                <span id="current-team-badge" class="team-badge badge-a">現在輪到：A 隊</span>
+            </div>
+
+            <div class="question-text" id="question-text">
+                題目載入中...
+            </div>
+
+            <div class="option-grid" id="options-container">
+                </div>
+        </div>
+
+        <div id="result-screen" style="display:none;">
+            <h1>比賽結束！</h1>
+            <div id="winner-display" class="winner-text"></div>
+            
+            <div class="stats-box">
+                <div class="stat-card stat-a">
+                    <h2>A 隊 (橘)</h2>
+                    <p>得分: <span id="score-a-final">0</span> (不影響勝負)</p>
+                    <p>總時間: <span id="time-a-final">00:00</span></p>
+                </div>
+                <div class="stat-card stat-b">
+                    <h2>B 隊 (藍)</h2>
+                    <p>得分: <span id="score-b-final">0</span> (不影響勝負)</p>
+                    <p>總時間: <span id="time-b-final">00:00</span></p>
+                </div>
+            </div>
+            
+            <button class="btn btn-restart" onclick="location.reload()">重新開始</button>
+        </div>
+    </div>
+
+<script>
+    // === 修改點 3: 題庫資料更換為 jokeQ.txt 的內容 (已整理格式) ===
+    // 為了確保程式能正確讀取，已將原始雜亂的文本統一標準化為： 題目 (A) (B) (C) (D) 答案：(X)
+    const rawData = `
+什麼東西越洗越髒？ (A) 衣服 (B) 肥皂 (C) 水 (D) 手 答案：(C)
+什麼門永遠打不開？ (A) 家門 (B) 車門 (C) 球門 (D) 鐵門 答案：(C)
+什麼布剪不斷？ (A) 棉布 (B) 絲布 (C) 瀑布 (D) 雲布 答案：(C)
+什麼竹子不長在土裡？ (A) 毛竹 (B) 箭竹 (C) 爆竹 (D) 紫竹 答案：(C)
+什麼牛不吃草？ (A) 奶牛 (B) 公牛 (C) 蜗牛 (D) 黃牛 答案：(C)
+什麼水永遠拿不動？ (A) 海水 (B) 河水 (C) 口水 (D) 雨水 答案：(C)
+打什麼東西不用費力氣？ (A) 鼓 (B) 籃球 (C) 電話 (D) 針 答案：(C)
+為什麼青蛙能跳得比樹高？ (A) 青蛙腿長 (B) 青蛙力氣大 (C) 樹太矮 (D) 樹不會跳 答案：(D)
+什麼老鼠用兩隻腳走路？ (A) 普通老鼠 (B) 松鼠 (C) 米老鼠 (D) 電腦鼠 答案：(C)
+什麼鴨子用兩隻腳走路？ (A) 唐老鴨 (B) 北京鴨 (C) 所有鴨子 (D) 玩具鴨子 答案：(C)
+什麼東西有眼睛卻看不見？ (A) 針 (B) 馬鈴薯 (C) 颱風 (D) 以上皆是 答案：(D)
+台北到高雄有多遠？ (A) 約400公里 (B) 一張高鐵票那麼遠 (C) 很近 (D) 不知道 答案：(B)
+什麼花不能摘？ (A) 玫瑰 (B) 櫻花 (C) 火花 (D) 向日葵 答案：(C)
+什麼蛋不能吃？ (A) 雞蛋 (B) 鴨蛋 (C) 壞蛋 (D) 皮蛋 答案：(C)
+什麼山沒有石頭？ (A) 泰山 (B) 華山 (C) 冰山 (D) 火焰山 答案：(C)
+什麼海沒有魚？ (A) 紅海 (B) 黑海 (C) 死海 (D) 地中海 答案：(C)
+什麼東西破了才好？ (A) 玻璃杯 (B) 心 (C) 記錄 (D) 手機 答案：(C)
+什麼東西買來是黑的，用時是紅的，用後是灰的？ (A) 蠟燭 (B) 木炭 (C) 火柴 (D) 煤 答案：(B)
+為什麼有些車子前面有「學」字？ (A) 學生開的 (B) 學車 (C) 新車 (D) 學校的 答案：(B)
+什麼動物最會隱藏自己？ (A) 老虎 (B) 狐狸 (C) 變色龍 (D) 貓 答案：(C)
+請問「綠豆」是哪裡人？ (A) 台北人 (B) 台南人 (C) 嘉義人 (D) 彰化人 答案：(C)
+數字 1 到 9，誰最懶惰？ (A) 1 (B) 7 (C) 9 (D) 2 答案：(A)
+數字 0 到 9，誰最勤勞？ (A) 2 (B) 4 (C) 3 (D) 1 答案：(A)
+哪位古人跑得最快？ (A) 關羽 (B) 曹操 (C) 劉備 (D) 孫悟空 答案：(B)
+什麼動物最容易被貼在牆壁上？ (A) 壁虎 (B) 海豹 (C) 獅子 (D) 斑馬 答案：(B)
+猴子最討厭什麼線？ (A) 斑馬線 (B) 停止線 (C) 平行線 (D) 拋物線 答案：(C)
+哪一種狗最熱？ (A) 臘腸狗 (B) 熱狗 (C) 哈士奇 (D) 貴賓狗 答案：(B)
+什麼水果最燙？ (A) 西瓜 (B) 蘋果 (C) 梨子 (D) 香蕉 答案：(C)
+有一隻狼掉進南極的冰海裡，變成什麼？ (A) 冰狼 (B) 檳榔 (C) 雪狼 (D) 落水狗 答案：(B)
+哪一種花最沒力氣？ (A) 玫瑰花 (B) 茉莉花 (C) 太陽花 (D) 牽牛花 答案：(B)
+透明人來了，你想對他說什麼？ (A) 你好 (B) 借過 (C) 好久不見 (D) 鬼啊 答案：(C)
+什麼樣的路不能走？ (A) 高速公路 (B) 馬路 (C) 鐵路 (D) 電路 答案：(D)
+什麼布剪不斷？ (A) 棉布 (B) 麻布 (C) 瀑布 (D) 畫布 答案：(C)
+什麼老鼠用兩隻腳走路？ (A) 袋鼠 (B) 米老鼠 (C) 倉鼠 (D) 松鼠 答案：(B)
+什麼鴨子用兩隻腳走路？ (A) 唐老鴨 (B) 薑母鴨 (C) 所有的鴨子 (D) 北京烤鴨 答案：(C)
+哪一個字永遠寫錯？ (A) 難 (B) 繁 (C) 錯 (D) 亂 答案：(C)
+麒麟飛到北極會變成什麼？ (A) 冰麒麟 (B) 聖獸 (C) 冰雕 (D) 冷凍肉 答案：(A)
+什麼東西越洗越髒？ (A) 水 (B) 毛巾 (C) 肥皂 (D) 鍋子 答案：(B)
+什麼車最不怕塞車？ (A) 公車 (B) 計程車 (C) 火車 (D) 購物車 答案：(D)
+什麼東西有頭沒有身體？ (A) 鉛筆 (B) 硬幣 (C) 針 (D) 魚 答案：(C)
+什麼門永遠關不上？ (A) 家門 (B) 車門 (C) 球門 (D) 心門 答案：(C)
+哪一個月最容易感冒？ (A) 一月 (B) 二月 (C) 三月 (D) 十二月 答案：(B)
+為什麼書本最怕下雨？ (A) 會淋濕 (B) 會變重 (C) 會發霉 (D) 會變成水書 答案：(D)
+什麼人最不怕冷？ (A) 北極人 (B) 雪人 (C) 冷氣師傅 (D) 冰箱 答案：(B)
+什麼東西越分享越少？ (A) 快樂 (B) 蛋糕 (C) 知識 (D) 愛 答案：(B)
+為什麼電腦常常生氣？ (A) 太熱 (B) 中毒 (C) 當機 (D) 沒電 答案：(C)
+什麼東西有腳卻走不動？ (A) 桌子 (B) 狗 (C) 鞋子 (D) 人 答案：(A)
+什麼動物最會打電話？ (A) 猴子 (B) 老虎 (C) 長頸鹿 (D) 蝸牛 答案：(A)
+什麼東西每天都會長大一次？ (A) 樹 (B) 馬桶 (C) 年紀 (D) 體重 答案：(C)
+為什麼海裡的水不會流走？ (A) 太多 (B) 太深 (C) 沒出口 (D) 有防波堤 答案：(C)
+什麼瓜不能吃？ (A) 西瓜 (B) 冬瓜 (C) 南瓜 (D) 傻瓜 答案：(D)
+什麼東西有眼睛卻看不到？ (A) 針 (B) 風 (C) 魚 (D) 老鷹 答案：(A)
+為什麼超人上班遲到？ (A) 睡過頭 (B) 車壞了 (C) 去救人 (D) 飛太慢 答案：(C)
+什麼東西越用越小？ (A) 鉛筆 (B) 手機 (C) 書 (D) 電腦 答案：(A)
+為什麼魚不說話？ (A) 不會說 (B) 沒人聽 (C) 在水裡 (D) 怕被煮 答案：(C)
+    `;
+
+    // === 遊戲變數 ===
+    let questions = [];
+    let currentQuestions = [];
+    let currentQIndex = 0;
+    let turn = 'A'; // 'A' or 'B'
+    let scoreA = 0;
+    let scoreB = 0;
+    let timeA = 0; // ms
+    let timeB = 0; // ms
+    let timerInterval = null;
+    let lastTime = 0;
+    
+    // 取得音效元素
+    const bgMusic = document.getElementById('bg-music');
+
+    // === 解析資料 (Regex 已更新以匹配新格式) ===
+    function parseData() {
+        const lines = rawData.split('\n').filter(line => line.trim() !== '');
+        const parsed = [];
+        
+        // 正規表達式說明：
+        // 匹配 題目... (A) ... (B) ... (C) ... (D) ... 答案：(X)
+        const regex = /(.+?)\s*\(A\)\s*(.+?)\s*\(B\)\s*(.+?)\s*\(C\)\s*(.+?)\s*\(D\)\s*(.+?)\s*答案：\(([A-D])\)/;
+        
+        lines.forEach(line => {
+            const match = line.match(regex);
+            if (match) {
+                parsed.push({
+                    q: match[1].trim(),
+                    options: {
+                        A: match[2].trim(),
+                        B: match[3].trim(),
+                        C: match[4].trim(),
+                        D: match[5].trim()
+                    },
+                    ans: match[6]
+                });
+            }
+        });
+        return parsed;
+    }
+
+    // === 初始化遊戲 ===
+    function startGame(count) {
+        questions = parseData();
+        if (questions.length === 0) {
+            alert("題庫解析失敗，請檢查資料格式。");
+            return;
+        }
+
+        // 隨機洗牌
+        questions.sort(() => 0.5 - Math.random());
+        // 取出前 N 題
+        const actualCount = Math.min(count, questions.length);
+        currentQuestions = questions.slice(0, actualCount);
+        
+        // 重置變數
+        currentQIndex = 0;
+        turn = 'A';
+        scoreA = 0;
+        scoreB = 0;
+        timeA = 0;
+        timeB = 0;
+        document.getElementById('timerA').innerText = "00:00.00";
+        document.getElementById('timerB').innerText = "00:00.00";
+        document.getElementById('q-total').innerText = currentQuestions.length;
+        
+        // 切換畫面
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+
+        // 播放音樂
+        bgMusic.currentTime = 0;
+        bgMusic.play().catch(e => console.log("Autoplay blocked:", e));
+
+        updateTeamUI();
+        loadQuestion();
+        startTimer();
+    }
+
+    // === 載入題目 ===
+    function loadQuestion() {
+        if (currentQIndex >= currentQuestions.length) {
+            endGame();
+            return;
+        }
+
+        const qData = currentQuestions[currentQIndex];
+        document.getElementById('q-current').innerText = currentQIndex + 1;
+        document.getElementById('question-text').innerText = qData.q;
+        
+        const container = document.getElementById('options-container');
+        container.innerHTML = ''; // 清空選項
+
+        ['A', 'B', 'C', 'D'].forEach(optKey => {
+            const btn = document.createElement('div');
+            btn.className = 'option-btn';
+            btn.innerText = `(${optKey}) ${qData.options[optKey]}`;
+            btn.onclick = () => checkAnswer(optKey, qData.ans, btn);
+            container.appendChild(btn);
+        });
+    }
+
+    // === 檢查答案 (罰時 7 秒) ===
+    function checkAnswer(selected, correct, btnElement) {
+        stopTimer(); // 暫停計時，顯示結果
+        
+        const allBtns = document.querySelectorAll('.option-btn');
+        allBtns.forEach(b => b.style.pointerEvents = 'none');
+
+        if (selected === correct) {
+            btnElement.classList.add('correct');
+            if (turn === 'A') scoreA++; else scoreB++;
+        } else {
+            // 答錯邏輯
+            btnElement.classList.add('wrong');
+            
+            // 1. 標示正確答案
+            allBtns.forEach(b => {
+                if (b.innerText.startsWith(`(${correct})`)) {
+                    b.classList.add('correct');
+                }
+            });
+
+            // 2. 增加時間 (罰時 7 秒)
+            const penalty = 7000; 
+            if (turn === 'A') {
+                timeA += penalty;
+                const timerEl = document.getElementById('timerA');
+                timerEl.innerText = formatTime(timeA) + " (+7秒)";
+                timerEl.classList.add('penalty-text');
+                setTimeout(() => timerEl.classList.remove('penalty-text'), 1000);
+            } else {
+                timeB += penalty;
+                const timerEl = document.getElementById('timerB');
+                timerEl.innerText = formatTime(timeB) + " (+7秒)";
+                timerEl.classList.add('penalty-text');
+                setTimeout(() => timerEl.classList.remove('penalty-text'), 1000);
+            }
+        }
+
+        // 延遲後換下一題
+        setTimeout(() => {
+            currentQIndex++;
+            switchTurn();
+            loadQuestion();
+            startTimer();
+        }, 1500);
+    }
+
+    // === 切換隊伍 ===
+    function switchTurn() {
+        turn = turn === 'A' ? 'B' : 'A';
+        updateTeamUI();
+    }
+
+    // === 更新 UI ===
+    function updateTeamUI() {
+        const body = document.body;
+        const badge = document.getElementById('current-team-badge');
+        
+        body.classList.remove('team-a-turn', 'team-b-turn');
+        badge.classList.remove('badge-a', 'badge-b');
+
+        if (turn === 'A') {
+            body.classList.add('team-a-turn');
+            badge.classList.add('badge-a');
+            badge.innerText = "現在輪到：A 隊 (橘)";
+        } else {
+            body.classList.add('team-b-turn');
+            badge.classList.add('badge-b');
+            badge.innerText = "現在輪到：B 隊 (藍)";
+        }
+    }
+
+    // === 計時器邏輯 ===
+    function startTimer() {
+        lastTime = Date.now();
+        timerInterval = setInterval(() => {
+            const now = Date.now();
+            const diff = now - lastTime;
+            lastTime = now;
+
+            if (turn === 'A') {
+                timeA += diff;
+                document.getElementById('timerA').innerText = formatTime(timeA);
+            } else {
+                timeB += diff;
+                document.getElementById('timerB').innerText = formatTime(timeB);
+            }
+        }, 50);
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+    }
+
+    function formatTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+        const millis = Math.floor((ms % 1000) / 10).toString().padStart(2, '0');
+        return `${minutes}:${seconds}.${millis}`;
+    }
+
+    // === 遊戲結束 ===
+    function endGame() {
+        stopTimer();
+        
+        // 暫停音樂
+        bgMusic.pause();
+
+        document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'block';
+        
+        document.body.classList.remove('team-a-turn', 'team-b-turn'); 
+
+        document.getElementById('score-a-final').innerText = scoreA;
+        document.getElementById('time-a-final').innerText = formatTime(timeA);
+        document.getElementById('score-b-final').innerText = scoreB;
+        document.getElementById('time-b-final').innerText = formatTime(timeB);
+
+        // 判斷勝負 (純粹比時間)
+        let winnerText = "";
+        
+        if (timeA < timeB) {
+            winnerText = "🎉 A 隊獲勝！(時間較短)";
+        } else if (timeB < timeA) {
+            winnerText = "🎉 B 隊獲勝！(時間較短)";
+        } else {
+            winnerText = "🤝 平手！";
+        }
+
+        document.getElementById('winner-display').innerText = winnerText;
+    }
+
+    function adjustFontSize() {
+        const val = document.getElementById('fontSizeSlider').value;
+        document.documentElement.style.setProperty('--base-font-size', val + 'px');
+    }
+</script>
+
+</body>
+</html>
